@@ -123,6 +123,32 @@ class GitHubClient:
         return self.request("POST", "/user/repos",
                             {"name": name, "description": description, "auto_init": auto_init})
 
+    # ---- okuma yardımcıları (AI bağlamı için) ----
+    def get_tree(self, owner, repo, branch):
+        """Repodaki dosya yollarını döndürür (boş repo için boş liste)."""
+        try:
+            tree = self.get(f"/repos/{owner}/{repo}/git/trees/{urllib.parse.quote(branch)}?recursive=1")
+        except GitHubError as e:
+            if e.status in (404, 409):
+                return []
+            raise
+        return [t["path"] for t in tree.get("tree", []) if t.get("type") == "blob"]
+
+    def get_text(self, owner, repo, path, limit=6000):
+        """Bir dosyanın metnini döndürür; bulunamazsa ya da ikiliyse None."""
+        try:
+            f = self.get(f"/repos/{owner}/{repo}/contents/{urllib.parse.quote(path)}")
+        except GitHubError as e:
+            if e.status in (404, 409):
+                return None
+            raise
+        if not isinstance(f, dict) or f.get("encoding") != "base64":
+            return None
+        try:
+            return base64.b64decode(f["content"]).decode("utf-8")[:limit]
+        except (UnicodeDecodeError, ValueError):
+            return None
+
 
 def _days_since(iso):
     if not iso:

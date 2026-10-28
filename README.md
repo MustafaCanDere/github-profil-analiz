@@ -33,6 +33,16 @@ Token yalnızca düzeltme yapmak ve API limitini (saatte 60 → 5000) artırmak 
 
 Profil alanlarını doldurma, profil README reposu oluşturma, repo açıklaması ve etiket ekleme, MIT lisansı ekleme, şablondan README oluşturma (göndermeden önce düzenlenebilir), eski repoyu arşivleme, Pages adresini website olarak ekleme. Her işlem öncesinde onay ister.
 
+## 🤖 AI ile otomatik düzeltme
+
+Claude API anahtarını girip **AI ile Tümünü Düzelt**'e basınca program her reponun kodunu ve dosyalarını okur; Claude da eksik olan açıklamayı, etiketleri ve README'yi, profil için de biyografiyi ve profil README'sini yazar (Türkçe veya İngilizce). Eksik lisanslar için MIT lisansı eklenir.
+
+Öneriler önce bir önizleme penceresinde gösterilir: metinleri düzenleyebilir, istemediklerinin işaretini kaldırabilirsin. **Seçilenleri GitHub'a Uygula**'ya basana kadar hiçbir şey değişmez.
+
+- API anahtarını [platform.claude.com](https://platform.claude.com/settings/keys) adresinden alabilirsin. Kullanım Claude API hesabından ücretlendirilir (repo başına genellikle birkaç sent).
+- Anahtar hiçbir yere kaydedilmez. `ANTHROPIC_API_KEY` ortam değişkeni tanımlıysa otomatik doldurulur.
+- Model: `claude-opus-5-5`.
+
 ## Kaynaktan derleme
 
-Yalnızca Python standart kütüphanesi kullanılır. Windows'ta `build.bat` çalıştır ya da kodu bir GitHub reposuna yükle: `.github/workflows/build.yml` exe'yi otomatik derler. Konsolda rapor için: `python main.py --cli KULLANICI [TOKEN]`.
+Analiz kısmı yalnızca Python standart kütüphanesini kullanır; AI özelliği için `pip install -r requirements.txt` gerekir. Windows'ta `build.bat` çalıştır ya da kodu bir GitHub reposuna yükle: `.github/workflows/build.yml` exe'yi otomatik derler. Konsolda rapor için: `python main.py --cli KULLANICI [TOKEN]`.
