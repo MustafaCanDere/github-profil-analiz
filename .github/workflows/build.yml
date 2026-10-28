@@ -1,5 +1,11 @@
 name: Windows exe derle
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -14,3 +20,11 @@ jobs:
         with:
           name: GitHubProfilAnaliz
           path: dist/GitHubProfilAnaliz.exe
+      - name: Release oluştur (yalnızca v* etiketlerinde)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/GitHubProfilAnaliz.exe
+          body: |
+            GitHubProfilAnaliz.exe dosyasını indirip çift tıklayarak çalıştır (kurulum gerekmez).
+            Windows "bilinmeyen yayıncı" uyarısı verirse: Ek bilgi → Yine de çalıştır.
