@@ -8,8 +8,16 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from . import core
+from . import ai, core
 
+AI_PROVIDERS = {
+    "Claude": {"env": "ANTHROPIC_API_KEY", "models": (ai.MODEL,),
+               "key_url": "https://platform.claude.com/settings/keys",
+               "cost": "Kullanım Claude API hesabından ücretlendirilir."},
+    "Gemini": {"env": "GEMINI_API_KEY", "models": ai.GEMINI_MODELS,
+               "key_url": "https://aistudio.google.com/apikey",
+               "cost": "Kullanım Gemini API hesabından (varsa ücretsiz kotadan) düşer."},
+}
 AI_FIXES = {"description", "topics", "readme", "license", "profile_bio", "profile_readme", "profile_readme_file"}
 
 APP_TITLE = "GitHub Profil Analiz"
@@ -130,7 +138,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("1040x680")
+        self.geometry("1180x700")
         self.minsize(820, 520)
         self.client = None
         self.report = None
@@ -169,9 +177,20 @@ class App(tk.Tk):
         link.grid(row=1, column=3, sticky="w", padx=6)
         link.bind("<Button-1>", lambda _: webbrowser.open(
             "https://github.com/settings/tokens/new?scopes=repo,user&description=GitHub%20Profil%20Analiz"))
-        ttk.Label(top, text="Claude API anahtarı:").grid(row=2, column=2, sticky="w", padx=(12, 0), pady=(6, 0))
-        self.ai_key_var = tk.StringVar(value=os.environ.get("ANTHROPIC_API_KEY", ""))
-        ttk.Entry(top, textvariable=self.ai_key_var, width=36, show="•").grid(row=2, column=3, padx=6, pady=(6, 0))
+        ttk.Label(top, text="AI:").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.ai_provider_var = tk.StringVar(value="Claude")
+        prov = ttk.Combobox(top, textvariable=self.ai_provider_var, values=tuple(AI_PROVIDERS), width=10,
+                            state="readonly")
+        prov.grid(row=2, column=1, sticky="w", padx=6, pady=(6, 0))
+        prov.bind("<<ComboboxSelected>>", lambda _: self._on_provider())
+        self.ai_model_var = tk.StringVar()
+        self.model_box = ttk.Combobox(top, textvariable=self.ai_model_var, width=22)
+        self.model_box.grid(row=3, column=1, sticky="w", padx=6)
+        self.ai_key_lbl = ttk.Label(top)
+        self.ai_key_lbl.grid(row=2, column=2, sticky="w", padx=(12, 0), pady=(6, 0))
+        self.ai_keys = {name: tk.StringVar(value=os.environ.get(p["env"], "")) for name, p in AI_PROVIDERS.items()}
+        self.ai_key_entry = ttk.Entry(top, width=36, show="•")
+        self.ai_key_entry.grid(row=2, column=3, padx=6, pady=(6, 0))
         self.ai_lang_var = tk.StringVar(value="Türkçe")
         ttk.Combobox(top, textvariable=self.ai_lang_var, values=("Türkçe", "English"), width=10,
                      state="readonly").grid(row=2, column=4, padx=6, pady=(6, 0))
@@ -179,7 +198,8 @@ class App(tk.Tk):
         self.ai_btn.grid(row=2, column=5, padx=6, pady=(6, 0))
         klink = ttk.Label(top, text="API anahtarı nasıl alınır?", foreground="#0969da", cursor="hand2")
         klink.grid(row=3, column=3, sticky="w", padx=6)
-        klink.bind("<Button-1>", lambda _: webbrowser.open("https://platform.claude.com/settings/keys"))
+        klink.bind("<Button-1>", lambda _: webbrowser.open(AI_PROVIDERS[self.ai_provider_var.get()]["key_url"]))
+        self._on_provider()
 
         info = ttk.Frame(self, padding=(10, 0))
         info.pack(fill="x")
@@ -227,6 +247,14 @@ class App(tk.Tk):
 
         self.status = ttk.Label(self, text="Hazır", anchor="w", padding=(10, 2))
         self.status.pack(fill="x", side="bottom")
+
+    def _on_provider(self):
+        name = self.ai_provider_var.get()
+        self.ai_key_lbl.config(text=f"{name} API anahtarı:")
+        self.ai_key_entry.config(textvariable=self.ai_keys[name])
+        self.model_box.config(values=AI_PROVIDERS[name]["models"],
+                              state="normal" if len(AI_PROVIDERS[name]["models"]) > 1 else "disabled")
+        self.ai_model_var.set(AI_PROVIDERS[name]["models"][0])
 
     # ---------- analiz ----------
     def start(self):
@@ -435,8 +463,9 @@ class App(tk.Tk):
             messagebox.showwarning(APP_TITLE, "AI ile düzeltme için bu hesaba ait bir GitHub token'ı girip "
                                               "tekrar analiz etmelisin (izinler: 'repo' ve 'user').")
             return
-        if not self.ai_key_var.get().strip():
-            messagebox.showwarning(APP_TITLE, "Claude API anahtarını gir. 'API anahtarı nasıl alınır?' "
+        provider = self.ai_provider_var.get()
+        if not self.ai_keys[provider].get().strip():
+            messagebox.showwarning(APP_TITLE, f"{provider} API anahtarını gir. 'API anahtarı nasıl alınır?' "
                                               "bağlantısından yeni bir anahtar oluşturabilirsin.")
             return
         todo = {}
@@ -447,22 +476,24 @@ class App(tk.Tk):
             messagebox.showinfo(APP_TITLE, "AI'nin düzeltebileceği bir eksik kalmadı.")
             return
         n_repo = sum(1 for t in todo if t != "Profil")
-        if not messagebox.askyesno(APP_TITLE, f"Claude, {n_repo} repo ve profilin için öneriler hazırlayacak.\n"
-                                              "Bu işlem Claude API hesabından ücret düşer ve birkaç dakika sürebilir.\n\n"
+        if not messagebox.askyesno(APP_TITLE, f"{provider}, {n_repo} repo ve profilin için öneriler hazırlayacak.\n"
+                                              f"{AI_PROVIDERS[provider]['cost']} İşlem birkaç dakika sürebilir.\n\n"
                                               "Hiçbir değişiklik sen onaylamadan GitHub'a gönderilmez. Devam edilsin mi?"):
             return
         self.ai_btn.config(state="disabled")
         self.go_btn.config(state="disabled")
-        threading.Thread(target=self._ai_worker, args=(login, todo), daemon=True).start()
+        threading.Thread(target=self._ai_worker, args=(login, todo, provider), daemon=True).start()
 
-
-    def _ai_worker(self, login, todo):
-        from . import ai  # anthropic paketini yalnızca gerektiğinde yükle
+    def _ai_worker(self, login, todo, provider):
         gh, changes, errors = self.client, [], []
+        key, lang = self.ai_keys[provider].get(), self.ai_lang_var.get()
         try:
-            bot = ai.Assistant(self.ai_key_var.get(), self.ai_lang_var.get())
+            if provider == "Gemini":
+                bot = ai.GeminiAssistant(key, lang, self.ai_model_var.get())
+            else:
+                bot = ai.ClaudeAssistant(key, lang)
         except Exception as e:
-            self.q.put(("call", self._ai_done, [], [f"Claude istemcisi başlatılamadı: {e}"]))
+            self.q.put(("call", self._ai_done, [], [f"{provider} istemcisi başlatılamadı: {e}"]))
             return
         targets = [t for t in todo if t != "Profil"] + (["Profil"] if "Profil" in todo else [])
         for n, target in enumerate(targets):
